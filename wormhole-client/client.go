@@ -20,7 +20,7 @@ type Service struct {
 
 // Start start forward service
 func (s *Service) Start() {
-	glog.Infof("wormhole-client is running on %s, will forward all connections to %s", s.LocalAddress, s.RemoteAddress)
+	glog.Infof("wormhole-client is running on %s, remote server %s will forward all connections to %s", s.LocalAddress, configure.Singleton.RemoteAddress, s.RemoteAddress)
 	for {
 		var connection net.Conn
 		var err error
