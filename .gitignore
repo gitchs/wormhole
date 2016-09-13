@@ -32,3 +32,4 @@ _testmain.go
 keys
 configure.yml
 *.xz
+.idea/
