@@ -19,7 +19,7 @@ func getProxy(req *http.Request) (*url.URL, error) {
 }
 
 func TestProxyServer(t *testing.T) {
-	ps := NewProxyServer()
+	ps := NewProxyServer(nil)
 	ln, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		t.Log("fail to create listener")

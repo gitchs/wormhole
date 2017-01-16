@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"io"
 	"log"
 	"net"
@@ -8,7 +9,33 @@ import (
 	"strings"
 )
 
-type ProxyServer struct{}
+type ConnectionFactory func(network, addr string) (conn net.Conn, err error)
+
+type ProxyServer struct {
+	cf ConnectionFactory
+}
+
+func (ps *ProxyServer) newStreamConnection(network, addr string) (conn net.Conn, err error) {
+	if ps.cf == nil {
+		return net.Dial(network, addr)
+	} else {
+		return ps.cf(network, addr)
+	}
+	return
+}
+
+func (ps *ProxyServer) newHTTPClient() (c *http.Client) {
+	if ps.cf == nil {
+		c = http.DefaultClient
+	} else {
+		c = &http.Client{
+			Transport: &http.Transport{DialContext: func(_ context.Context, network, addr string) (net.Conn, error) {
+				return ps.cf(network, addr)
+			}},
+		}
+	}
+	return
+}
 
 func (ps *ProxyServer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// always remove proxy authorization header
@@ -27,7 +54,7 @@ func (ps *ProxyServer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			http.Error(rw, "invalid upstream address", http.StatusBadRequest)
 			return
 		}
-		upstream, err = net.Dial("tcp", upstreamAddress)
+		upstream, err = ps.cf("tcp", upstreamAddress)
 		if err != nil {
 			log.Printf("fail to dial upstream address %s", upstreamAddress)
 			http.Error(rw, "fail to dial upstream", http.StatusBadRequest)
@@ -36,11 +63,14 @@ func (ps *ProxyServer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		rawConn, _, _ := rw.(http.Hijacker).Hijack()
 		rawConn.Write([]byte("HTTP/1.0 200 Connection established\r\n\r\n"))
 
-		defer rawConn.Close()
-		defer upstream.Close()
+		defer func() {
+			log.Println("close connections")
+			rawConn.Close()
+			upstream.Close()
+		}()
 
-		go io.Copy(upstream, rawConn)
-		io.Copy(rawConn, upstream)
+		go io.Copy(rawConn, upstream)
+		io.Copy(upstream, rawConn)
 	} else {
 		var upstreamRequest *http.Request
 		var upstreamResponse *http.Response
@@ -52,7 +82,7 @@ func (ps *ProxyServer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 		upstreamRequest.Header = r.Header
 		upstreamRequest.Header.Del("Proxy-Connection")
-		upstreamResponse, err = http.DefaultClient.Do(upstreamRequest)
+		upstreamResponse, err = ps.newHTTPClient().Do(upstreamRequest)
 		if err != nil && !strings.Contains(err.Error(), "doNotFollowRedirect") {
 			log.Println(err)
 			rw.WriteHeader(http.StatusInternalServerError)
@@ -70,7 +100,8 @@ func (ps *ProxyServer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func NewProxyServer() (ps *ProxyServer) {
+func NewProxyServer(df ConnectionFactory) (ps *ProxyServer) {
 	ps = new(ProxyServer)
+	ps.cf = df
 	return
 }

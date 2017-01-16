@@ -8,6 +8,11 @@ import (
 
 	"log"
 
+	"net/http"
+
+	"time"
+
+	httpProxy "github.com/gitchs/wormhole/types/proxy/http"
 	"github.com/gitchs/wormhole/utils"
 	"github.com/gitchs/wormhole/wormhole-client/initialization"
 )
@@ -44,13 +49,13 @@ func (s *Service) handleConnection(lc net.Conn) {
 
 func (s *Service) realHandler(localConnection net.Conn) {
 	var err error
-	var remoteConnection *tls.Conn
-	log.Printf("new connection in from %s", localConnection.RemoteAddr())
+	var remoteConnection net.Conn
+	log.Printf("new connection in from %s, forward it to %s", localConnection.RemoteAddr(), s.RemoteAddress)
 	defer func() {
-		log.Printf("close client connectino from %s", localConnection.RemoteAddr())
+		log.Printf("close client connectino from %s, it was forward to %s", localConnection.RemoteAddr(), s.RemoteAddress)
 		localConnection.Close()
 		if remoteConnection != nil {
-			log.Printf("close remote connection for %s", localConnection.RemoteAddr())
+			log.Printf("close remote connection for %s, the remote is %s", localConnection.RemoteAddr(), s.RemoteAddress)
 			remoteConnection.Close()
 		}
 	}()
@@ -58,30 +63,13 @@ func (s *Service) realHandler(localConnection net.Conn) {
 		ServerName:   initialization.Configure.TLS.ServerName,
 		RootCAs:      initialization.CertPool,
 		Certificates: []tls.Certificate{initialization.TLSCertificate}}
-	if remoteConnection, err = tls.Dial("tcp", initialization.Configure.RemoteAddress, &tlsConfigure); err == nil {
-		// send init request
-		header := utils.BuildInitRequest(s.RemoteAddress)
-		remoteConnection.Write(header)
-		// wait init response
-		buffer := make([]byte, 32)
-		var nread int
-		nread, err = remoteConnection.Read(buffer)
-		if err == nil && nread > 0 {
-			switch buffer[0] {
-			case 0:
-				// release buffer we don't need
-				buffer = nil
-				// all green, start forward connection
-				go io.Copy(localConnection, remoteConnection)
-				io.Copy(remoteConnection, localConnection)
-			case 1:
-				log.Println("fail to connect to remote address")
-			default:
-				log.Println("invalid init stage response")
-			}
-		}
+	cf := utils.NewWormholeClientForwardConnectionFactory(initialization.Configure.RemoteAddress, &tlsConfigure)
+	remoteConnection, err = cf("tcp", s.RemoteAddress)
+	if err == nil {
+		go io.Copy(localConnection, remoteConnection)
+		io.Copy(remoteConnection, localConnection)
 	} else {
-		log.Println("fail to connect to remote address %s, %v", s.RemoteAddress, err)
+		log.Printf("fail to connect to remote address %s, %v", s.RemoteAddress, err)
 	}
 }
 
@@ -109,6 +97,31 @@ func main() {
 		go service.Start()
 		services[index] = service
 		index++
+	}
+	if initialization.Configure.HTTP.Enable {
+		httpProxyServer := httpProxy.NewProxyServer(
+			utils.NewWormholeClientForwardConnectionFactory(
+				initialization.Configure.RemoteAddress, &tls.Config{
+					ServerName:   initialization.Configure.TLS.ServerName,
+					RootCAs:      initialization.CertPool,
+					Certificates: []tls.Certificate{initialization.TLSCertificate}}))
+		errCh := make(chan error)
+		go func() {
+			err := http.ListenAndServe(initialization.Configure.HTTP.Address, httpProxyServer)
+			errCh <- err
+		}()
+		time.AfterFunc(500*time.Millisecond, func() {
+			errCh <- nil
+		})
+		select {
+		case err := <-errCh:
+			if err == nil {
+				log.Printf("http proxy server is running on %s", initialization.Configure.HTTP.Address)
+			} else {
+				log.Printf("http proxy server failed to run, error %v", err)
+			}
+		}
+		close(errCh)
 	}
 	select {}
 }

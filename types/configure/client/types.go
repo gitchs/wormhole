@@ -14,6 +14,10 @@ type Configure struct {
 		KeyPath    string `yaml:"key"`
 		ServerName string `yaml:"server"`
 	} `yaml:"tls"`
+	HTTP struct {
+		Address string `yaml:"address"`
+		Enable  bool   `yaml:"enable"`
+	}
 	RemoteAddress   string            `yaml:"remote"`
 	ForwardServices map[string]string `yaml:"services"`
 }
