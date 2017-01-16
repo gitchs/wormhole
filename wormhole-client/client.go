@@ -6,9 +6,10 @@ import (
 
 	"crypto/tls"
 
+	"log"
+
 	"github.com/gitchs/wormhole/utils"
 	"github.com/gitchs/wormhole/wormhole-client/initialization"
-	"github.com/golang/glog"
 )
 
 // Service forward services
@@ -20,7 +21,7 @@ type Service struct {
 
 // Start start forward service
 func (s *Service) Start() {
-	glog.Infof("wormhole-client is running on %s, remote server %s will forward all connections to %s", s.LocalAddress, initialization.Configure.RemoteAddress, s.RemoteAddress)
+	log.Printf("wormhole-client is running on %s, remote server %s will forward all connections to %s", s.LocalAddress, initialization.Configure.RemoteAddress, s.RemoteAddress)
 	for {
 		var connection net.Conn
 		var err error
@@ -33,9 +34,9 @@ func (s *Service) Start() {
 func (s *Service) handleConnection(lc net.Conn) {
 	defer func() {
 		if err := recover(); err != nil {
-			glog.Error(err)
+			log.Println(err)
 		} else {
-			glog.V(4).Info("connection handle successfully")
+			log.Printf("handle connection for %s successfully", lc.RemoteAddr())
 		}
 	}()
 	s.realHandler(lc)
@@ -44,12 +45,12 @@ func (s *Service) handleConnection(lc net.Conn) {
 func (s *Service) realHandler(localConnection net.Conn) {
 	var err error
 	var remoteConnection *tls.Conn
-	glog.V(1).Infof("new connection in from %s", localConnection.RemoteAddr())
+	log.Printf("new connection in from %s", localConnection.RemoteAddr())
 	defer func() {
-		glog.V(2).Infof("close client connectino from %s", localConnection.RemoteAddr())
+		log.Printf("close client connectino from %s", localConnection.RemoteAddr())
 		localConnection.Close()
 		if remoteConnection != nil {
-			glog.V(2).Infof("close remote connection for %s", localConnection.RemoteAddr())
+			log.Printf("close remote connection for %s", localConnection.RemoteAddr())
 			remoteConnection.Close()
 		}
 	}()
@@ -74,13 +75,13 @@ func (s *Service) realHandler(localConnection net.Conn) {
 				go io.Copy(localConnection, remoteConnection)
 				io.Copy(remoteConnection, localConnection)
 			case 1:
-				glog.Info("fail to connect to remote address")
+				log.Println("fail to connect to remote address")
 			default:
-				glog.Info("invalid init stage response")
+				log.Println("invalid init stage response")
 			}
 		}
 	} else {
-		glog.Warningf("fail to connect to remote address %s, %v", s.RemoteAddress, err)
+		log.Println("fail to connect to remote address %s, %v", s.RemoteAddress, err)
 	}
 }
 

@@ -1,13 +1,12 @@
 package initialization
 
 import (
-	// import glog flags
-	_ "github.com/golang/glog"
-
 	"crypto/tls"
 	"crypto/x509"
 	"flag"
 	"io/ioutil"
+
+	"log"
 
 	sc "github.com/gitchs/wormhole/types/configure/server"
 )
@@ -24,6 +23,7 @@ var TLSCertificate tls.Certificate
 var CertPool *x509.CertPool
 
 func init() {
+	log.SetFlags(log.Llongfile | log.Ltime | log.Ldate | log.LstdFlags)
 	var err error
 	var rawCAContent []byte
 	if !flag.Parsed() {
