@@ -11,7 +11,7 @@ import (
 	sc "github.com/gitchs/wormhole/types/configure/server"
 )
 
-var configureFilePath = flag.String("initialization", "./configure.yml", "configure file path")
+var configureFilePath = flag.String("configure", "./configure.yml", "configure file path")
 
 // Singleton wormhole server configures
 var Singleton *sc.Configure
