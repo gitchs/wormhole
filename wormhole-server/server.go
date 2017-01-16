@@ -6,7 +6,7 @@ import (
 	"net"
 
 	"github.com/gitchs/wormhole/utils"
-	"github.com/gitchs/wormhole/wormhole-server/configure"
+	"github.com/gitchs/wormhole/wormhole-server/initialization"
 	"github.com/golang/glog"
 )
 
@@ -64,13 +64,13 @@ func main() {
 	var err error
 	var server net.Listener
 	tlsConfigure := tls.Config{
-		Certificates: []tls.Certificate{configure.TLSCertificate},
-		ClientCAs:    configure.CertPool,
+		Certificates: []tls.Certificate{initialization.TLSCertificate},
+		ClientCAs:    initialization.CertPool,
 		ClientAuth:   tls.RequireAndVerifyClientCert}
-	if server, err = tls.Listen("tcp", configure.Singleton.LocalAddress, &tlsConfigure); err != nil {
+	if server, err = tls.Listen("tcp", initialization.Singleton.LocalAddress, &tlsConfigure); err != nil {
 		panic(err)
 	}
-	glog.Infof("server is running on %s", configure.Singleton.LocalAddress)
+	glog.Infof("server is running on %s", initialization.Singleton.LocalAddress)
 	for {
 		var connection net.Conn
 		if connection, err = server.Accept(); err != nil {

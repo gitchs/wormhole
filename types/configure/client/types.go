@@ -1,4 +1,4 @@
-package types
+package client
 
 import (
 	"io/ioutil"
@@ -18,7 +18,7 @@ type Configure struct {
 	ForwardServices map[string]string `yaml:"services"`
 }
 
-// LoadConfigureFromPath load configure
+// LoadConfigureFromPath load initialization
 func LoadConfigureFromPath(filepath string) (configure *Configure, err error) {
 	var rawContent []byte
 	if rawContent, err = ioutil.ReadFile(filepath); err == nil {

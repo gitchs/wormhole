@@ -7,7 +7,7 @@ import (
 	"crypto/tls"
 
 	"github.com/gitchs/wormhole/utils"
-	"github.com/gitchs/wormhole/wormhole-client/configure"
+	"github.com/gitchs/wormhole/wormhole-client/initialization"
 	"github.com/golang/glog"
 )
 
@@ -20,7 +20,7 @@ type Service struct {
 
 // Start start forward service
 func (s *Service) Start() {
-	glog.Infof("wormhole-client is running on %s, remote server %s will forward all connections to %s", s.LocalAddress, configure.Singleton.RemoteAddress, s.RemoteAddress)
+	glog.Infof("wormhole-client is running on %s, remote server %s will forward all connections to %s", s.LocalAddress, initialization.Configure.RemoteAddress, s.RemoteAddress)
 	for {
 		var connection net.Conn
 		var err error
@@ -54,10 +54,10 @@ func (s *Service) realHandler(localConnection net.Conn) {
 		}
 	}()
 	tlsConfigure := tls.Config{
-		ServerName:   configure.Singleton.TLS.ServerName,
-		RootCAs:      configure.CertPool,
-		Certificates: []tls.Certificate{configure.TLSCertificate}}
-	if remoteConnection, err = tls.Dial("tcp", configure.Singleton.RemoteAddress, &tlsConfigure); err == nil {
+		ServerName:   initialization.Configure.TLS.ServerName,
+		RootCAs:      initialization.CertPool,
+		Certificates: []tls.Certificate{initialization.TLSCertificate}}
+	if remoteConnection, err = tls.Dial("tcp", initialization.Configure.RemoteAddress, &tlsConfigure); err == nil {
 		// send init request
 		header := utils.BuildInitRequest(s.RemoteAddress)
 		remoteConnection.Write(header)
@@ -97,9 +97,9 @@ func NewService(localAddress, remoteAddress string) (s *Service, err error) {
 }
 
 func main() {
-	services := make([]*Service, len(configure.Singleton.ForwardServices))
+	services := make([]*Service, len(initialization.Configure.ForwardServices))
 	index := 0
-	for localAddress, remoteAddress := range configure.Singleton.ForwardServices {
+	for localAddress, remoteAddress := range initialization.Configure.ForwardServices {
 		var service *Service
 		var err error
 		if service, err = NewService(localAddress, remoteAddress); err != nil {

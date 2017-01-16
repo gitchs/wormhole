@@ -1,4 +1,4 @@
-package configure
+package initialization
 
 import (
 	// import glog flags
@@ -9,15 +9,15 @@ import (
 	"flag"
 	"io/ioutil"
 
-	"github.com/gitchs/wormhole/wormhole-client/configure/types"
+	sc "github.com/gitchs/wormhole/types/configure/server"
 )
 
-var configureFilePath = flag.String("configure", "./configure.yml", "configure file path")
+var configureFilePath = flag.String("initialization", "./configure.yml", "configure file path")
 
-// Singleton wormhole client configures
-var Singleton *types.Configure
+// Singleton wormhole server configures
+var Singleton *sc.Configure
 
-// TLSCertificate client tls certificate
+// TLSCertificate server tls certificate
 var TLSCertificate tls.Certificate
 
 // CertPool only contains our CA
@@ -29,7 +29,7 @@ func init() {
 	if !flag.Parsed() {
 		flag.Parse()
 	}
-	if Singleton, err = types.LoadConfigureFromPath(*configureFilePath); err != nil {
+	if Singleton, err = sc.LoadConfigureFromPath(*configureFilePath); err != nil {
 		panic(err)
 	}
 	if rawCAContent, err = ioutil.ReadFile(Singleton.TLS.CAPath); err != nil {
