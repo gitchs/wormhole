@@ -10,7 +10,7 @@ import (
 	cc "github.com/gitchs/wormhole/types/configure/client"
 )
 
-var configureFilePath = flag.String("initialization", "./configure.yml", "configure file path")
+var configureFilePath = flag.String("configure", "./configure.yml", "configure file path")
 
 // Configure wormhole client configures
 var Configure *cc.Configure
