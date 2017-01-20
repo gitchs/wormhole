@@ -1,7 +1,6 @@
 package main
 
 import (
-	"io"
 	"net"
 
 	"crypto/tls"
@@ -66,8 +65,8 @@ func (s *Service) realHandler(localConnection net.Conn) {
 	cf := utils.NewWormholeClientForwardConnectionFactory(initialization.Configure.RemoteAddress, &tlsConfigure)
 	remoteConnection, err = cf("tcp", s.RemoteAddress)
 	if err == nil {
-		go io.Copy(localConnection, remoteConnection)
-		io.Copy(remoteConnection, localConnection)
+		relay := utils.NewTCPRelay(localConnection, remoteConnection)
+		relay.Start()
 	} else {
 		log.Printf("fail to connect to remote address %s, %v", s.RemoteAddress, err)
 	}

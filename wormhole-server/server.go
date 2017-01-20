@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/tls"
-	"io"
 	"net"
 
 	"log"
@@ -51,8 +50,8 @@ func realHandler(lc net.Conn) {
 			log.Printf("new tcprelay from [%s](%s) to %s", clientName, localConnection.RemoteAddr(), remoteAddress)
 			if remoteConnection, err = net.Dial("tcp", remoteAddress); err == nil {
 				localConnection.Write(utils.InitSuccessResponse)
-				go io.Copy(localConnection, remoteConnection)
-				io.Copy(remoteConnection, localConnection)
+				relay := utils.NewTCPRelay(localConnection, remoteConnection)
+				relay.Start()
 			} else {
 				localConnection.Write(utils.InitForwardFailResponse)
 				log.Printf("fail to connect to remote address %s for %v", remoteAddress, clientName)

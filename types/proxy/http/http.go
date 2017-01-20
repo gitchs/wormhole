@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/http"
 	"strings"
+
+	"github.com/gitchs/shttp/utils"
 )
 
 type ConnectionFactory func(network, addr string) (conn net.Conn, err error)
@@ -69,8 +71,8 @@ func (ps *ProxyServer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			upstream.Close()
 		}()
 
-		go io.Copy(rawConn, upstream)
-		io.Copy(upstream, rawConn)
+		relay := utils.NewTCPRelay(rawConn, upstream)
+		relay.Start()
 	} else {
 		var upstreamRequest *http.Request
 		var upstreamResponse *http.Response
