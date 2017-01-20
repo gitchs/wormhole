@@ -8,6 +8,8 @@ import (
 
 	"log"
 
+	"os"
+
 	sc "github.com/gitchs/wormhole/types/configure/server"
 )
 
@@ -22,12 +24,21 @@ var TLSCertificate tls.Certificate
 // CertPool only contains our CA
 var CertPool *x509.CertPool
 
+// versionSwitch if enable, dump version string and exit
+var versionSwitch = flag.Bool("v", false, "show version string")
+
+var VersionString = "[SELF BUILD]"
+
 func init() {
 	log.SetFlags(log.Llongfile | log.Ltime | log.Ldate | log.LstdFlags)
 	var err error
 	var rawCAContent []byte
 	if !flag.Parsed() {
 		flag.Parse()
+	}
+	if *versionSwitch {
+		log.Printf(`wormhole-server version is %s`, VersionString)
+		os.Exit(0)
 	}
 	if Singleton, err = sc.LoadConfigureFromPath(*configureFilePath); err != nil {
 		panic(err)
