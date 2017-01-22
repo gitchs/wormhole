@@ -6,8 +6,6 @@ import (
 	"net"
 
 	"crypto/tls"
-
-	"github.com/gitchs/wormhole/types/proxy/http"
 )
 
 // BuildInitRequest build forward header address
@@ -30,7 +28,7 @@ func ParseInitRequest(header []byte) (remoteAddress string, err error) {
 	return
 }
 
-func NewWormholeClientForwardConnectionFactory(server string, tlsConfigure *tls.Config) http.ConnectionFactory {
+func NewWormholeClientForwardConnectionFactory(server string, tlsConfigure *tls.Config) ConnectionFactory {
 	var retval = func(network, addr string) (conn net.Conn, err error) {
 		switch network {
 		case "tcp", "tcp4", "tcp6":

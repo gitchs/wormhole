@@ -8,13 +8,11 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gitchs/shttp/utils"
+	"github.com/gitchs/wormhole/utils"
 )
 
-type ConnectionFactory func(network, addr string) (conn net.Conn, err error)
-
 type ProxyServer struct {
-	cf ConnectionFactory
+	cf utils.ConnectionFactory
 }
 
 func (ps *ProxyServer) newStreamConnection(network, addr string) (conn net.Conn, err error) {
@@ -102,7 +100,7 @@ func (ps *ProxyServer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func NewProxyServer(df ConnectionFactory) (ps *ProxyServer) {
+func NewProxyServer(df utils.ConnectionFactory) (ps *ProxyServer) {
 	ps = new(ProxyServer)
 	ps.cf = df
 	return
