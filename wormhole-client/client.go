@@ -52,10 +52,14 @@ func (s *Service) realHandler(localConnection net.Conn) {
 	log.Printf("new connection in from %s, forward it to %s", localConnection.RemoteAddr(), s.RemoteAddress)
 	defer func() {
 		log.Printf("close client connectino from %s, it was forward to %s", localConnection.RemoteAddr(), s.RemoteAddress)
-		localConnection.Close()
+		if lce := localConnection.Close(); lce != nil {
+			log.Printf(`failed to close localConnection. error %v`, lce)
+		}
 		if remoteConnection != nil {
 			log.Printf("close remote connection for %s, the remote is %s", localConnection.RemoteAddr(), s.RemoteAddress)
-			remoteConnection.Close()
+			if rce := remoteConnection.Close(); rce != nil {
+				log.Printf(`failed to close remoteConnection. error %v`, rce)
+			}
 		}
 	}()
 	tlsConfigure := tls.Config{
@@ -66,7 +70,9 @@ func (s *Service) realHandler(localConnection net.Conn) {
 	remoteConnection, err = cf("tcp", s.RemoteAddress)
 	if err == nil {
 		relay := utils.NewTCPRelay(localConnection, remoteConnection)
-		relay.Start()
+		if re := relay.Start(); re != nil {
+			log.Printf(`relay should always return nil`)
+		}
 	} else {
 		log.Printf("fail to connect to remote address %s, %v", s.RemoteAddress, err)
 	}
@@ -87,9 +93,9 @@ func NewService(localAddress, remoteAddress string) (s *Service, err error) {
 func main() {
 	services := make([]*Service, len(initialization.Configure.ForwardServices))
 	index := 0
+	var err error
 	for localAddress, remoteAddress := range initialization.Configure.ForwardServices {
 		var service *Service
-		var err error
 		if service, err = NewService(localAddress, remoteAddress); err != nil {
 			panic(err)
 		}
@@ -106,19 +112,17 @@ func main() {
 					Certificates: []tls.Certificate{initialization.TLSCertificate}}))
 		errCh := make(chan error)
 		go func() {
-			err := http.ListenAndServe(initialization.Configure.HTTP.Address, httpProxyServer)
+			err = http.ListenAndServe(initialization.Configure.HTTP.Address, httpProxyServer)
 			errCh <- err
 		}()
 		time.AfterFunc(500*time.Millisecond, func() {
 			errCh <- nil
 		})
-		select {
-		case err := <-errCh:
-			if err == nil {
-				log.Printf("http proxy server is running on %s", initialization.Configure.HTTP.Address)
-			} else {
-				log.Printf("http proxy server failed to run, error %v", err)
-			}
+		err = <-errCh
+		if err == nil {
+			log.Printf("http proxy server is running on %s", initialization.Configure.HTTP.Address)
+		} else {
+			log.Printf("http proxy server failed to run, error %v", err)
 		}
 		close(errCh)
 	}

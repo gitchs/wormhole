@@ -13,7 +13,7 @@ import (
 func handleConnection(lc net.Conn) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Println(err)
+			log.Printf(`handle connection failed. error %v`, err)
 		} else {
 			log.Printf("handle connection for %s successfully", lc.RemoteAddr())
 		}
@@ -33,27 +33,38 @@ func realHandler(lc net.Conn) {
 	}
 	defer func() {
 		log.Printf("close client connectino from %s", localConnection.RemoteAddr())
-		localConnection.Close()
+		if err = localConnection.Close(); err != nil {
+			log.Printf(`close localConnection failed. error %v`, err)
+		}
 		if remoteConnection != nil {
 			log.Printf("close remote connection for %s", localConnection.RemoteAddr())
-			remoteConnection.Close()
+			if rce := remoteConnection.Close(); rce != nil {
+				log.Printf(`fail to close remoteConnection. error %v`, rce)
+			}
 		}
 	}()
 	// 1k buffer for init stage is enough
 	buffer := make([]byte, 1024)
-	var nread int
-	if nread, err = localConnection.Read(buffer); err == nil && nread > 0 {
+	var nr int
+	if nr, err = localConnection.Read(buffer); err == nil && nr > 0 {
 		var remoteAddress string
-		if remoteAddress, err = utils.ParseInitRequest(buffer[0:nread]); err == nil && len(remoteAddress) > 0 {
-			buffer = nil
+		if remoteAddress, err = utils.ParseInitRequest(buffer[0:nr]); err == nil && len(remoteAddress) > 0 {
 			clientName := localConnection.ConnectionState().PeerCertificates[0].Subject.CommonName
 			log.Printf("new tcprelay from [%s](%s) to %s", clientName, localConnection.RemoteAddr(), remoteAddress)
 			if remoteConnection, err = net.Dial("tcp", remoteAddress); err == nil {
-				localConnection.Write(utils.InitSuccessResponse)
+				if _, err = localConnection.Write(utils.InitSuccessResponse); err != nil {
+					log.Printf(`fail to send InitSuccessResponse to %v`, localConnection.RemoteAddr())
+					return
+				}
 				relay := utils.NewTCPRelay(localConnection, remoteConnection)
-				relay.Start()
+				if re := relay.Start(); re != nil {
+					log.Printf(`relay should always return nil`)
+				}
 			} else {
-				localConnection.Write(utils.InitForwardFailResponse)
+				if _, lwe := localConnection.Write(utils.InitForwardFailResponse); lwe != nil {
+					log.Printf(`failed to write wormhole connection InitForwardFailResponse. error %v`, lwe)
+					return
+				}
 				log.Printf("fail to connect to remote address %s for %v", remoteAddress, clientName)
 			}
 		}

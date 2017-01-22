@@ -2,4 +2,5 @@ package utils
 
 import "net"
 
-type ConnectionFactory func(network, addr string) (conn net.Conn, err error)
+// WormholeConnectionFactory wormhole connection factory
+type WormholeConnectionFactory func(network, addr string) (conn net.Conn, err error)

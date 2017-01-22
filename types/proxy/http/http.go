@@ -11,15 +11,16 @@ import (
 	"github.com/gitchs/wormhole/utils"
 )
 
+// ProxyServer http proxy server
 type ProxyServer struct {
-	cf utils.ConnectionFactory
+	cf utils.WormholeConnectionFactory
 }
 
 func (ps *ProxyServer) newStreamConnection(network, addr string) (conn net.Conn, err error) {
 	if ps.cf == nil {
-		return net.Dial(network, addr)
+		conn, err = net.Dial(network, addr)
 	} else {
-		return ps.cf(network, addr)
+		conn, err = ps.cf(network, addr)
 	}
 	return
 }
@@ -60,17 +61,33 @@ func (ps *ProxyServer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			http.Error(rw, "fail to dial upstream", http.StatusBadRequest)
 			return
 		}
-		rawConn, _, _ := rw.(http.Hijacker).Hijack()
-		rawConn.Write([]byte("HTTP/1.0 200 Connection established\r\n\r\n"))
+		var rawConn net.Conn
+		if rawConn, _, err = rw.(http.Hijacker).Hijack(); err != nil {
+			log.Printf(`failed to hijack http connection. err %v`, err)
+			return
+		}
+		if _, err = rawConn.Write([]byte("HTTP/1.0 200 Connection established\r\n\r\n")); err != nil {
+			log.Printf("failed to send CONNECT command response")
+			if err = rawConn.Close(); err != nil {
+				log.Printf(`already closed? err %v`, err)
+			}
+			return
+		}
 
 		defer func() {
 			log.Println("close connections")
-			rawConn.Close()
-			upstream.Close()
+			if err = rawConn.Close(); err != nil {
+				log.Printf(`already close connection? err %v`, err)
+			}
+			if err = upstream.Close(); err != nil {
+				log.Printf(`already close connection? err %v`, err)
+			}
 		}()
 
 		relay := utils.NewTCPRelay(rawConn, upstream)
-		relay.Start()
+		if err = relay.Start(); err != nil {
+			log.Println(`tcp relay always return nil`)
+		}
 	} else {
 		var upstreamRequest *http.Request
 		var upstreamResponse *http.Response
@@ -88,19 +105,26 @@ func (ps *ProxyServer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		defer upstreamResponse.Body.Close()
+		defer func() {
+			if err = upstreamResponse.Body.Close(); err != nil {
+				log.Printf(`failed to close upstream respnose. error %v`, err)
+			}
+		}()
 		rw.WriteHeader(upstreamResponse.StatusCode)
 		for headerKey, headerVals := range upstreamResponse.Header {
 			for _, headerVal := range headerVals {
 				rw.Header().Set(headerKey, headerVal)
 			}
 		}
-		io.Copy(rw, upstreamResponse.Body)
+		if _, err = io.Copy(rw, upstreamResponse.Body); err != nil {
+			log.Printf(`failed to copy upstream response to cilent. error %v`, err)
+		}
 	}
 	return
 }
 
-func NewProxyServer(df utils.ConnectionFactory) (ps *ProxyServer) {
+// NewProxyServer create new http proxy server
+func NewProxyServer(df utils.WormholeConnectionFactory) (ps *ProxyServer) {
 	ps = new(ProxyServer)
 	ps.cf = df
 	return

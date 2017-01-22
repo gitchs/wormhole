@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// TCPRelay simple tcp relay, will disconnect after 300 seconds if not activate data
 type TCPRelay struct {
 	Local  net.Conn
 	Remote net.Conn
@@ -31,8 +32,12 @@ func (ec elderConnection) WriteTo(w io.Writer) (n int64, err error) {
 	buf := make([]byte, bufferSize)
 	for {
 		newDeadline := time.Now().Add(time.Second * elderConnectionTimeout)
-		ec.SetDeadline(newDeadline)
-		wConn.SetDeadline(newDeadline)
+		if ec.SetDeadline(newDeadline) != nil {
+			break
+		}
+		if wConn.SetDeadline(newDeadline) != nil {
+			break
+		}
 		var nr, nw int
 		nr, err = ec.Read(buf)
 		if nr > 0 {
@@ -50,19 +55,23 @@ func (ec elderConnection) WriteTo(w io.Writer) (n int64, err error) {
 }
 
 func relayPipe(dst, src net.Conn, ch chan int) {
-	io.Copy(elderConnection{Conn: dst}, elderConnection{Conn: src})
-	ch <- 1
+	var err error
+	if _, err = io.Copy(elderConnection{Conn: dst}, elderConnection{Conn: src}); err == nil {
+		ch <- 0
+	} else {
+		ch <- 1
+	}
 }
 
+// Start start tcp relay, close both connection if any connection get error
 func (t *TCPRelay) Start() (err error) {
 	go relayPipe(t.Remote, t.Local, t.ch)
 	go relayPipe(t.Local, t.Remote, t.ch)
-	select {
-	case <-t.ch:
-	}
+	<-t.ch
 	return nil
 }
 
+// NewTCPRelay create new tcp relay
 func NewTCPRelay(local, remote net.Conn) (relay *TCPRelay) {
 	relay = new(TCPRelay)
 	relay.Local = elderConnection{Conn: local}

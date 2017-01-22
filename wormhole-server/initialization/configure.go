@@ -27,6 +27,7 @@ var CertPool *x509.CertPool
 // versionSwitch if enable, dump version string and exit
 var versionSwitch = flag.Bool("v", false, "show version string")
 
+// VersionString wormhole-server version string, will be replace when build release version
 var VersionString = "[SELF BUILD]"
 
 func init() {

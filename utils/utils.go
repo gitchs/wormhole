@@ -6,6 +6,7 @@ import (
 	"net"
 
 	"crypto/tls"
+	"log"
 )
 
 // BuildInitRequest build forward header address
@@ -28,7 +29,9 @@ func ParseInitRequest(header []byte) (remoteAddress string, err error) {
 	return
 }
 
-func NewWormholeClientForwardConnectionFactory(server string, tlsConfigure *tls.Config) ConnectionFactory {
+// NewWormholeClientForwardConnectionFactory wormhole's net.Dial
+// TODO: refactor it and make it look more it look more like net.Dial
+func NewWormholeClientForwardConnectionFactory(server string, tlsConfigure *tls.Config) WormholeConnectionFactory {
 	var retval = func(network, addr string) (conn net.Conn, err error) {
 		switch network {
 		case "tcp", "tcp4", "tcp6":
@@ -37,10 +40,17 @@ func NewWormholeClientForwardConnectionFactory(server string, tlsConfigure *tls.
 			rc, err = tls.Dial("tcp", server, tlsConfigure)
 			if err == nil {
 				initResponseBuffer := make([]byte, 1)
-				rc.Write(BuildInitRequest(addr))
-				nread, err := rc.Read(initResponseBuffer)
+				if _, err = rc.Write(BuildInitRequest(addr)); err != nil {
+					var rce error
+					if rce = rc.Close(); rce != nil {
+						log.Printf(`fail to close connection. error %v`, rce)
+					}
+					return
+				}
+				var nr int
+				nr, err = rc.Read(initResponseBuffer)
 				if err == nil {
-					if nread == 1 {
+					if nr == 1 {
 						switch initResponseBuffer[0] {
 						case 0:
 							conn = rc
@@ -54,7 +64,6 @@ func NewWormholeClientForwardConnectionFactory(server string, tlsConfigure *tls.
 						err = errors.New("invalid wormhole init response")
 					}
 				}
-
 			}
 		default:
 			conn, err = net.Dial(network, addr)
