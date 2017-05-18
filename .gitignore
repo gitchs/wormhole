@@ -33,3 +33,7 @@ keys
 configure.yml
 *.xz
 .idea/
+vendor/
+*.yml
+*.crt
+*.key

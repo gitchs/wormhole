@@ -1,13 +1,19 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
-	"net"
-
 	"log"
+	"net"
+	"time"
 
 	"github.com/gitchs/wormhole/utils"
 	"github.com/gitchs/wormhole/wormhole-server/initialization"
+)
+
+var fc = utils.NewFetchCRL(
+	time.Second*time.Duration(initialization.Singleton.CRL.TimeVali),
+	initialization.Singleton.CRL.CRLUrl,
 )
 
 func handleConnection(lc net.Conn) {
@@ -31,6 +37,10 @@ func realHandler(lc net.Conn) {
 		log.Println("localConnection must be *tls.Conn")
 		return
 	}
+
+	//TODO:
+	fc.StorageConn(localConnection)
+
 	defer func() {
 		log.Printf("close client connectino from %s", localConnection.RemoteAddr())
 		if err = localConnection.Close(); err != nil {
@@ -82,6 +92,9 @@ func main() {
 		panic(err)
 	}
 	log.Printf("server is running on %s", initialization.Singleton.LocalAddress)
+
+	fc.MatchCRL(context.Background())
+
 	for {
 		var connection net.Conn
 		if connection, err = server.Accept(); err != nil {
