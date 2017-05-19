@@ -1,13 +1,19 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
-	"net"
-
 	"log"
+	"net"
+	"time"
 
 	"github.com/gitchs/wormhole/utils"
 	"github.com/gitchs/wormhole/wormhole-server/initialization"
+)
+
+var fc = utils.NewFetchCRL(
+	time.Second*time.Duration(initialization.Singleton.CRL.TimeVali),
+	initialization.Singleton.CRL.CRLUrl,
 )
 
 func handleConnection(lc net.Conn) {
@@ -31,11 +37,25 @@ func realHandler(lc net.Conn) {
 		log.Println("localConnection must be *tls.Conn")
 		return
 	}
+
+	if len(localConnection.ConnectionState().PeerCertificates) == 0 {
+		localConnection.Handshake()
+	}
+	if ok, err := fc.ExecMatchCRL(localConnection.ConnectionState().PeerCertificates); err != nil {
+		log.Println(err)
+	} else if ok {
+		err_str := "Serial number match: intermediate is revoked."
+		log.Println(err_str)
+		localConnection.Close()
+		return
+	}
+
 	defer func() {
 		log.Printf("close client connectino from %s", localConnection.RemoteAddr())
 		if err = localConnection.Close(); err != nil {
 			log.Printf(`close localConnection failed. error %v`, err)
 		}
+
 		if remoteConnection != nil {
 			log.Printf("close remote connection for %s", localConnection.RemoteAddr())
 			if rce := remoteConnection.Close(); rce != nil {
@@ -82,6 +102,9 @@ func main() {
 		panic(err)
 	}
 	log.Printf("server is running on %s", initialization.Singleton.LocalAddress)
+
+	fc.MatchCRL(context.Background())
+
 	for {
 		var connection net.Conn
 		if connection, err = server.Accept(); err != nil {

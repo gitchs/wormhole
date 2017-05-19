@@ -13,6 +13,10 @@ type Configure struct {
 		CertPath string `yaml:"cert"`
 		KeyPath  string `yaml:"key"`
 	} `yaml:"tls"`
+	CRL struct {
+		TimeVali int    `yaml:"timeout"`
+		CRLUrl   string `yaml:"CRLUrl"`
+	}
 	LocalAddress string `yaml:"local"`
 }
 
