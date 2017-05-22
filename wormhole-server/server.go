@@ -11,9 +11,9 @@ import (
 	"github.com/gitchs/wormhole/wormhole-server/initialization"
 )
 
-var fc = utils.NewFetchCRL(
-	time.Second*time.Duration(initialization.Singleton.CRL.TimeVali),
-	initialization.Singleton.CRL.CRLUrl,
+var crl = utils.NewRevokedCRL(
+	time.Second*time.Duration(initialization.Singleton.CRL.Timeout),
+	initialization.Singleton.CRL.Crlurl,
 )
 
 func handleConnection(lc net.Conn) {
@@ -41,7 +41,7 @@ func realHandler(lc net.Conn) {
 	if len(localConnection.ConnectionState().PeerCertificates) == 0 {
 		localConnection.Handshake()
 	}
-	if ok, err := fc.ExecMatchCRL(localConnection.ConnectionState().PeerCertificates); err != nil {
+	if ok, err := crl.CertIsRevokedCRL(localConnection.ConnectionState().PeerCertificates); err != nil {
 		log.Println(err)
 	} else if ok {
 		err_str := "Serial number match: intermediate is revoked."
@@ -103,7 +103,7 @@ func main() {
 	}
 	log.Printf("server is running on %s", initialization.Singleton.LocalAddress)
 
-	fc.MatchCRL(context.Background())
+	crl.BackgroundRoutinue(context.Background())
 
 	for {
 		var connection net.Conn

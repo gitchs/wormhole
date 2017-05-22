@@ -14,8 +14,8 @@ type Configure struct {
 		KeyPath  string `yaml:"key"`
 	} `yaml:"tls"`
 	CRL struct {
-		TimeVali int    `yaml:"timeout"`
-		CRLUrl   string `yaml:"CRLUrl"`
+		Timeout int    `yaml:"timeout"`
+		Crlurl  string `yaml:"crlurl"`
 	}
 	LocalAddress string `yaml:"local"`
 }

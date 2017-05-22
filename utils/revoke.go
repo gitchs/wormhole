@@ -9,39 +9,36 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"sync"
 	"sync/atomic"
 	"time"
 )
 
-type FetchCRL struct {
-	sync.RWMutex
-
+type RevokedCRL struct {
 	TickTime time.Duration
 	url      string
 	certList *pkix.CertificateList
 	Err      error //ParseCRL Error
 }
 
-func NewFetchCRL(tic_time time.Duration, url string) *FetchCRL {
-	return &FetchCRL{
+func NewRevokedCRL(tic_time time.Duration, url string) *RevokedCRL {
+	return &RevokedCRL{
 		TickTime: tic_time,
 		url:      url,
 	}
 }
 
 //TODO
-func (fc *FetchCRL) MatchCRL(ctx context.Context) {
-	if err := fc.fetchCRL(); err != nil {
-		log.Println("ERROR: ", err)
-	}
+func (crl *RevokedCRL) BackgroundRoutinue(ctx context.Context) {
+	crl.fetchCRL()
 
 	go func() {
+		t := int64(crl.TickTime)
+		//gen global
+		tic := time.Tick(time.Duration(atomic.LoadInt64(&t)))
 		for {
-			t := int64(fc.TickTime)
 			select {
-			case <-time.Tick(time.Duration(atomic.LoadInt64(&t))):
-				if err := fc.fetchCRL(); err != nil {
+			case <-tic:
+				if err := crl.fetchCRL(); err != nil {
 					log.Println("ERROR: ", err)
 				}
 			case <-ctx.Done():
@@ -51,33 +48,29 @@ func (fc *FetchCRL) MatchCRL(ctx context.Context) {
 	}()
 }
 
-func (fc *FetchCRL) ExecMatchCRL(certs []*x509.Certificate) (bool, error) {
-	return fc.compare(certs)
+func (crl *RevokedCRL) CertIsRevokedCRL(certs []*x509.Certificate) (bool, error) {
+	return crl.certIsRevokedCRL(certs)
 }
 
-func (fc *FetchCRL) compare(certs []*x509.Certificate) (bool, error) {
-	fc.RLock()
-	defer fc.RUnlock()
+// check a cert against a specific CRL. Returns the same bool pair
+func (crl *RevokedCRL) certIsRevokedCRL(certs []*x509.Certificate) (bool, error) {
 	log.Println("certs len: ", len(certs))
-	crl := fc.certList
+	cl := crl.certList
 
 	for _, cert := range certs {
-		for _, revoked := range crl.TBSCertList.RevokedCertificates {
+		for _, revoked := range cl.TBSCertList.RevokedCertificates {
 			log.Println(revoked.RevocationTime)
 			if cert.SerialNumber.Cmp(revoked.SerialNumber) == 0 {
 				//Serial number match: intermediate is revoked
-				return true, fc.Err
+				return true, crl.Err
 			}
 		}
 	}
-	return false, fc.Err
+	return false, crl.Err
 }
 
-func (fc *FetchCRL) fetchCRL() error {
-	fc.Lock()
-	defer fc.Unlock()
-
-	resp, err := http.Get(fc.url)
+func (crl *RevokedCRL) fetchCRL() error {
+	resp, err := http.Get(crl.url)
 	fmt.Println("fetch CRL...")
 	if err != nil {
 		return err
@@ -91,6 +84,6 @@ func (fc *FetchCRL) fetchCRL() error {
 	}
 	resp.Body.Close()
 
-	fc.certList, fc.Err = x509.ParseCRL(body)
-	return fc.Err
+	crl.certList, crl.Err = x509.ParseCRL(body)
+	return crl.Err
 }
