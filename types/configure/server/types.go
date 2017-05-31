@@ -12,6 +12,7 @@ type Configure struct {
 		CAPath   string `yaml:"ca"`
 		CertPath string `yaml:"cert"`
 		KeyPath  string `yaml:"key"`
+		CRLURL   string `yaml:"crlURL"`
 	} `yaml:"tls"`
 	LocalAddress string `yaml:"local"`
 }

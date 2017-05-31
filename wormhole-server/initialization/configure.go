@@ -10,6 +10,12 @@ import (
 
 	"os"
 
+	"crypto/x509/pkix"
+
+	"time"
+
+	"net/http"
+
 	sc "github.com/gitchs/wormhole/types/configure/server"
 )
 
@@ -29,6 +35,28 @@ var versionSwitch = flag.Bool("v", false, "show version string")
 
 // VersionString wormhole-server version string, will be replace when build release version
 var VersionString = "[SELF BUILD]"
+
+var CRL *pkix.CertificateList
+
+func updateCRL() {
+	if Singleton.TLS.CRLURL == "" {
+		return
+	}
+	for {
+		log.Println(`update CRL`)
+		httpResponse, errHTTP := http.DefaultClient.Get(Singleton.TLS.CRLURL)
+		if errHTTP == nil {
+			crlBytes, errReadCRL := ioutil.ReadAll(httpResponse.Body)
+			if errReadCRL == nil {
+				if crl, errParseCRL := x509.ParseCRL(crlBytes); errParseCRL == nil {
+					CRL = crl
+				}
+			}
+			httpResponse.Body.Close()
+		}
+		time.Sleep(time.Second * 600)
+	}
+}
 
 func init() {
 	log.SetFlags(log.Llongfile | log.Ltime | log.Ldate | log.LstdFlags)
@@ -54,4 +82,5 @@ func init() {
 	if !CertPool.AppendCertsFromPEM(rawCAContent) {
 		panic("fail to parse ca content")
 	}
+	go updateCRL()
 }

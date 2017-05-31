@@ -6,6 +6,8 @@ import (
 
 	"log"
 
+	"fmt"
+
 	"github.com/gitchs/wormhole/utils"
 	"github.com/gitchs/wormhole/wormhole-server/initialization"
 )
@@ -31,6 +33,25 @@ func realHandler(lc net.Conn) {
 		log.Println("localConnection must be *tls.Conn")
 		return
 	}
+	if len(localConnection.ConnectionState().PeerCertificates) == 0 {
+		errHandshake := localConnection.Handshake()
+		if errHandshake != nil {
+			log.Println(errHandshake)
+			lc.Close()
+			return
+		}
+	}
+	if initialization.CRL != nil {
+		clientCertificate := localConnection.ConnectionState().PeerCertificates[0]
+		for _, revokedCertificate := range initialization.CRL.TBSCertList.RevokedCertificates {
+			if revokedCertificate.SerialNumber.Cmp(clientCertificate.SerialNumber) == 0 {
+				localConnection.Write([]byte(fmt.Sprintf(`your certificate already be revoked. serial number is %v`, clientCertificate.SerialNumber)))
+				log.Printf(`reject revoked certificate. "%s" "%v"`, clientCertificate.Subject.CommonName, clientCertificate.SerialNumber)
+				return
+			}
+		}
+	}
+
 	defer func() {
 		log.Printf("close client connectino from %s", localConnection.RemoteAddr())
 		if err = localConnection.Close(); err != nil {
